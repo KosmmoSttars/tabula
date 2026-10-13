@@ -1,0 +1,4 @@
+numpy
+pymunk>=7
+pygame-ce
+torch
