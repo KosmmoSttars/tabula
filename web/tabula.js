@@ -220,8 +220,6 @@
       ctx.moveTo(sx(m), 0);
       ctx.lineTo(sx(m), H);
       ctx.stroke();
-      ctx.fillStyle = 'rgba(200,205,220,.45)';
-      ctx.fillText(m + ' m', sx(m) + 4 * dpr, H - 10 * dpr);
     }
 
     // ground
@@ -262,6 +260,10 @@
         ctx.fill();
       }
     }
+
+    // distance labels, on the ground
+    ctx.fillStyle = 'rgba(200,205,220,.45)';
+    for (m = Math.ceil(x0 / 5) * 5; m <= x1; m += 5) ctx.fillText(m + ' m', sx(m) + 4 * dpr, H - 10 * dpr);
 
     // food
     var pulse = 0.5 + 0.5 * Math.sin(now / 250);
