@@ -107,8 +107,8 @@ main { max-width: 1240px; margin: 0 auto; padding: 0 20px; }
 }
 .light {
   position: absolute;
-  right: 16px;
-  bottom: 12px;
+  right: 18px;
+  top: 16px;
   margin: 0;
   color: var(--dim);
   font: 13px var(--mono);
