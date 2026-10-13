@@ -6,21 +6,21 @@ import time
 import pygame
 import pymunk
 
-from .config import BRAIN, PHYS
+from .config import PHYS
 from .life import STAGES, fmt_age
-from .world import JOINT_NAMES
 
 W, H = 1280, 720
 PANEL = 420
 VIEW_W = W - PANEL
 PPM = 95.0  # pixels per metre
 
+NIGHT_SKY = ((6, 8, 18), (16, 20, 36))
 C = {
     "sky_top": (24, 30, 48), "sky_bot": (58, 66, 92),
     "ground": (46, 52, 44), "ground_edge": (120, 140, 96),
     "torso": (232, 176, 98), "limb": (196, 132, 74), "limb_dark": (150, 98, 60),
     "foot_on": (250, 230, 140), "foot_off": (120, 84, 54),
-    "food": (120, 230, 140), "lidar": (110, 160, 220),
+    "food": (120, 230, 140), "gift": (255, 150, 210), "lidar": (110, 160, 220),
     "panel": (18, 20, 26), "text": (220, 224, 232), "dim": (120, 126, 140),
     "accent": (255, 196, 92), "good": (120, 220, 140), "bad": (236, 100, 96),
     "blue": (110, 170, 255), "violet": (186, 140, 255), "grid": (40, 44, 56),
@@ -35,13 +35,14 @@ MODES = {1: ("real time", None), 2: ("fast", 1 / 30), 3: ("turbo", 0.25)}
 class View:
     def __init__(self, being):
         pygame.init()
-        pygame.display.set_caption(f"Tabula - {being.name}")
+        pygame.display.set_caption(f"Tabula - {being.name} the {being.world.plan.title.lower()}")
         self.screen = pygame.display.set_mode((W, H))
         self.being = being
         self.font = pygame.font.SysFont("consolas", 14)
         self.small = pygame.font.SysFont("consolas", 12)
         self.big = pygame.font.SysFont("consolas", 26, bold=True)
-        self.sky = self._gradient(VIEW_W, H, C["sky_top"], C["sky_bot"])
+        self.day_sky = self._gradient(VIEW_W, H, C["sky_top"], C["sky_bot"])
+        self.night_sky = self._gradient(VIEW_W, H, *NIGHT_SKY)
         self.cam = pygame.Vector2(being.world.body.torso.position.x, being.world.body.torso.position.y)
         self.mode = 1
         self.paused = False
@@ -79,6 +80,10 @@ class View:
                         b.save()
                     elif e.key == pygame.K_v:
                         self.show_senses = not self.show_senses
+                elif e.type == pygame.MOUSEBUTTONDOWN and e.button == 1 and e.pos[0] < VIEW_W:
+                    # drop food where you click: you are a visitor too
+                    x = self.cam.x + (e.pos[0] - VIEW_W / 2) / PPM
+                    b.world.gift(x - b.world.body.torso.position.x, "you")
 
             now = time.monotonic()
             frame_dt, last = min(now - last, 0.1), now
@@ -119,7 +124,11 @@ class View:
         self.cam.y += (t.y - self.cam.y) * k
 
         s = self.screen
-        s.blit(self.sky, (0, 0))
+        s.blit(self.day_sky, (0, 0))
+        dark = int(255 * (1.0 - w.daylight))
+        if dark:
+            self.night_sky.set_alpha(dark)
+            s.blit(self.night_sky, (0, 0))
         half = VIEW_W / 2 / PPM + 1
         x0, x1 = self.cam.x - half, self.cam.x + half
 
@@ -140,14 +149,17 @@ class View:
         pygame.draw.polygon(s, C["ground"], pts + [(pts[-1][0], H), (pts[0][0], H)])
         pygame.draw.lines(s, C["ground_edge"], False, pts, 3)
 
-        # Food.
-        fx, fy = self.to_screen(w.food)
+        # Food: the world's own is green, gifts from visitors are pink.
         pulse = 0.5 + 0.5 * math.sin(time.monotonic() * 4)
-        if 0 <= fx <= VIEW_W:
-            pygame.draw.circle(s, (40, 90, 60), (fx, fy), int(16 + 6 * pulse))
-            pygame.draw.circle(s, C["food"], (fx, fy), 9)
-        else:
-            self._edge_arrow(fx < 0, fy, abs(w.food[0] - t.x))
+        for f in w.foods:
+            fx, fy = self.to_screen((f.x, f.y))
+            col = C["gift"] if f.gift else C["food"]
+            if 0 <= fx <= VIEW_W:
+                glow = tuple(int(c * 0.35) for c in col)
+                pygame.draw.circle(s, glow, (fx, fy), int(16 + 6 * pulse))
+                pygame.draw.circle(s, col, (fx, fy), 9)
+            elif f is w.food:
+                self._edge_arrow(fx < 0, fy, abs(f.x - t.x))
 
         if self.show_senses:
             o = self.to_screen(t)
@@ -162,8 +174,9 @@ class View:
         y = max(40, min(H - 40, fy))
         x = 18 if left else VIEW_W - 18
         d = -1 if left else 1
-        pygame.draw.polygon(self.screen, C["food"], [(x + d * 10, y), (x - d * 8, y - 10), (x - d * 8, y + 10)])
-        lbl = self.small.render(f"{dist:.1f} m", True, C["food"])
+        col = C["gift"] if self.being.world.food.gift else C["food"]
+        pygame.draw.polygon(self.screen, col, [(x + d * 10, y), (x - d * 8, y - 10), (x - d * 8, y + 10)])
+        lbl = self.small.render(f"{dist:.1f} m", True, col)
         self.screen.blit(lbl, (x - (0 if left else lbl.get_width()) + (-4 * d), y + 14))
 
     def _poly(self, shape: pymunk.Poly, color, outline=None) -> None:
@@ -173,28 +186,40 @@ class View:
         if outline:
             pygame.draw.polygon(self.screen, outline, pts, 2)
 
-    def _draw_creature(self) -> None:
+    def _draw_leg(self, i: int, behind: bool) -> None:
         w = self.being.world
         body = w.body
+        for sh in body.shapes:
+            if sh.body in (body.thighs[i], body.shins[i]) and isinstance(sh, pymunk.Poly):
+                self._poly(sh, C["limb_dark"] if behind else C["limb"])
+        foot = body.feet[i]
+        p = self.to_screen(foot.body.local_to_world(foot.offset))
+        col = C["foot_on"] if w.contacts[i] else C["foot_off"]
+        if behind:
+            col = tuple(int(c * 0.7) for c in col)
+        pygame.draw.circle(self.screen, col, p, max(3, int(foot.radius * PPM)))
+
+    def _draw_creature(self) -> None:
+        w = self.being.world
+        body, plan = w.body, w.plan
         s = self.screen
-        torso_shape = body.torso_shape
-        limb_shapes = [sh for sh in body.shapes if isinstance(sh, pymunk.Poly) and sh is not torso_shape]
-        for i, sh in enumerate(limb_shapes):
-            back = body.thighs[0] is sh.body or body.shins[0] is sh.body
-            self._poly(sh, C["limb_dark"] if back else C["limb"])
-        for i, foot in enumerate(body.feet):
-            p = self.to_screen(foot.body.local_to_world(foot.offset))
-            col = C["foot_on"] if w.contacts[i] else C["foot_off"]
-            pygame.draw.circle(s, col, p, max(3, int(foot.radius * PPM)))
-        self._poly(torso_shape, C["torso"], C["limb_dark"] if not w.contacts[2] else C["bad"])
+        # Far legs go behind the torso; the strider's back leg is drawn darker as before.
+        behind = [leg.far or (len(plan.legs) == 2 and i == 0) for i, leg in enumerate(plan.legs)]
+        for i in range(len(plan.legs)):
+            if behind[i]:
+                self._draw_leg(i, True)
+        self._poly(body.torso_shape, C["torso"], C["limb_dark"] if not w.contacts[-1] else C["bad"])
+        for i in range(len(plan.legs)):
+            if not behind[i]:
+                self._draw_leg(i, False)
 
         # An eye at the front of the torso that looks toward the food.
         t = body.torso
-        eye_w = t.local_to_world((0.38, 0.03))
+        eye_w = t.local_to_world((plan.eye_x, 0.03))
         ex, ey = self.to_screen(eye_w)
         r = 9
         pygame.draw.circle(s, (250, 250, 245), (ex, ey), r)
-        dx, dy = w.food[0] - eye_w.x, w.food[1] - eye_w.y
+        dx, dy = w.food.x - eye_w.x, w.food.y - eye_w.y
         dn = math.hypot(dx, dy) + 1e-6
         pygame.draw.circle(s, (30, 30, 40), (int(ex + dx / dn * 4), int(ey - dy / dn * 4)), 4)
         if w.energy <= 0.0:  # exhausted: eyelid drooped
@@ -238,6 +263,7 @@ class View:
         x, y, pw = x0 + 18, 14, PANEL - 36
 
         self._text(b.name, (x, y), C["accent"], self.big)
+        self._text(w.plan.title.lower(), (x + 12 + self.big.size(b.name)[0], y + 9), C["dim"])
         self._text(f"age {fmt_age(w.age)}", (x + pw - 150, y + 8), C["dim"])
         y += 36
         col = STAGE_COLORS[bio.stage]
@@ -264,17 +290,19 @@ class View:
 
         # Motor output.
         self._text("motors", (x, y), C["dim"])
-        for i, (name, u) in enumerate(zip(JOINT_NAMES, b.action)):
-            cx = x + 92 + i * 72
-            pygame.draw.rect(s, C["grid"], (cx, y + 2, 60, 12), border_radius=3)
-            mid = cx + 30
-            pygame.draw.rect(s, C["accent"], (min(mid, mid + int(u * 30)), y + 2, abs(int(u * 30)), 12))
+        slot = (pw - 92) // len(b.action)
+        half_w = max(6, (slot - 8) // 2)
+        for i, u in enumerate(b.action):
+            cx = x + 92 + i * slot
+            pygame.draw.rect(s, C["grid"], (cx, y + 2, 2 * half_w, 12), border_radius=3)
+            mid = cx + half_w
+            pygame.draw.rect(s, C["accent"], (min(mid, mid + int(u * half_w)), y + 2, abs(int(u * half_w)), 12))
         y += 26
 
         stats = [
             ("meals", f"{bio.meals}"), ("walked", f"{bio.walked:.0f} m"),
             ("farthest", f"{bio.farthest:.1f} m"), ("speed", f"{bio.speed:.2f} m/s"),
-            ("rescued", f"{bio.rescues}"), ("food at", f"{w.food[0] - w.body.torso.position.x:+.1f} m"),
+            ("rescued", f"{bio.rescues + bio.lifted}"), ("food at", f"{w.food.x - w.body.torso.position.x:+.1f} m"),
         ]
         for i, (k, v) in enumerate(stats):
             cx = x + (i % 2) * (pw // 2)
@@ -294,7 +322,7 @@ class View:
 
         # Brain.
         st = br.stats
-        phase = f"babbling {br.steps}/{BRAIN.babbling_steps}" if br.babbling else "learning"
+        phase = f"babbling {br.steps}/{br.cfg.babbling_steps}" if br.babbling else "learning"
         self._text(f"brain  {phase}   updates {br.updates:,}", (x, y), C["dim"], self.small)
         y += 16
         self._text(f"alpha {st['alpha']:.3f}  entropy {st['entropy']:+.2f}  Q loss {st['critic_loss']:.3f}",
@@ -312,4 +340,4 @@ class View:
 
         mode = MODES[self.mode][0] + ("  PAUSED" if self.paused else "")
         self._text(f"[1/2/3] speed: {mode}   [space] pause", (x, H - 36), C["dim"], self.small)
-        self._text("[v] senses   [s] save   [esc] sleep (save & quit)", (x, H - 20), C["dim"], self.small)
+        self._text("[v] senses  [s] save  [click] drop food  [esc] sleep", (x, H - 20), C["dim"], self.small)

@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Tabula — a creature learning to live</title>
+  <meta name="description" content="A creature with a body and a blank mind lives here, online, around the clock. Nobody trains it: it is learning to move, find food and stay alive on its own. Watch it, and drop it some food.">
+  <meta name="theme-color" content="#0d1017">
+  <meta property="og:title" content="Tabula — a creature learning to live">
+  <meta property="og:description" content="Born with a blank mind, learning to walk on its own, live around the clock. Drop it some food.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://kosmo-stars.ru/tabula/">
+  <meta property="og:image" content="https://kosmo-stars.ru/tabula/og.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="canonical" href="https://kosmo-stars.ru/tabula/">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;600&display=swap">
+  <link rel="stylesheet" href="tabula.css">
+  <script>
+    (function () {
+      var l;
+      try { l = localStorage.getItem('ks-lang-picked'); } catch (e) {}
+      if (l !== 'ru' && l !== 'en') l = 'en';
+      document.documentElement.lang = l;
+    })();
+  </script>
+</head>
+<body>
+  <header class="top">
+    <a class="brand" href="./"><span class="brand-mark" aria-hidden="true"></span>Tabula</a>
+    <nav class="top-links">
+      <button class="lang" type="button" id="lang"><span data-lang="en">RU</span><span data-lang="ru">EN</span></button>
+      <a href="https://kosmo-stars.ru/" class="made">KosmoStars</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="stage" aria-labelledby="who">
+      <div class="world">
+        <canvas id="world" role="img" aria-label="The creature in its world, live"></canvas>
+        <div class="overlay">
+          <h1 id="who"><span id="name">…</span> <small id="kind"></small></h1>
+          <p class="age"><span data-lang="en">age</span><span data-lang="ru">возраст</span> <b id="age">—</b></p>
+          <p class="stage-chip" id="stage-chip">—</p>
+        </div>
+        <p class="light" id="light" aria-live="off"></p>
+        <div class="asleep" id="asleep" hidden>
+          <p><span data-lang="en">Connecting to the creature…</span><span data-lang="ru">Подключаемся к существу…</span></p>
+        </div>
+      </div>
+
+      <div class="feed">
+        <p class="feed-label"><span data-lang="en">Drop it some food</span><span data-lang="ru">Бросить ему еды</span></p>
+        <button class="btn" type="button" data-side="-1"><span aria-hidden="true">←</span> <span data-lang="en">behind it</span><span data-lang="ru">сзади</span></button>
+        <button class="btn" type="button" data-side="1"><span data-lang="en">ahead of it</span><span data-lang="ru">впереди</span> <span aria-hidden="true">→</span></button>
+        <p class="feed-status" id="feed-status" aria-live="polite"></p>
+      </div>
+    </section>
+
+    <section class="cards">
+      <article class="card vitals">
+        <h2><span data-lang="en">Right now</span><span data-lang="ru">Сейчас</span></h2>
+        <div class="bar"><span data-lang="en">energy</span><span data-lang="ru">энергия</span><i><b id="energy-bar"></b></i><em id="energy">—</em></div>
+        <dl class="stats">
+          <div><dt><span data-lang="en">speed</span><span data-lang="ru">скорость</span></dt><dd id="speed">—</dd></div>
+          <div><dt><span data-lang="en">meals</span><span data-lang="ru">съедено</span></dt><dd id="meals">—</dd></div>
+          <div><dt><span data-lang="en">from visitors</span><span data-lang="ru">от зрителей</span></dt><dd id="gifts">—</dd></div>
+          <div><dt><span data-lang="en">walked</span><span data-lang="ru">пройдено</span></dt><dd id="walked">—</dd></div>
+          <div><dt><span data-lang="en">farthest</span><span data-lang="ru">дальше всего</span></dt><dd id="farthest">—</dd></div>
+          <div><dt><span data-lang="en">experience</span><span data-lang="ru">опыт</span></dt><dd id="steps">—</dd></div>
+        </dl>
+      </article>
+
+      <article class="card growth">
+        <h2><span data-lang="en">Growing up</span><span data-lang="ru">Взросление</span></h2>
+        <ol class="stages" id="stages"></ol>
+        <figure class="chart">
+          <svg id="chart" viewBox="0 0 400 120" preserveAspectRatio="none" aria-hidden="true"></svg>
+          <figcaption><span data-lang="en">speed, metres a second, minute by minute</span><span data-lang="ru">скорость, метров в секунду, по минутам</span></figcaption>
+        </figure>
+      </article>
+
+      <article class="card story">
+        <h2><span data-lang="en">Its life so far</span><span data-lang="ru">Его жизнь</span></h2>
+        <ol class="milestones" id="milestones"></ol>
+      </article>
+    </section>
+
+    <section class="about" id="about">
+      <div class="about-text">
+        <h2><span data-lang="en">What is this</span><span data-lang="ru">Что это</span></h2>
+        <p data-lang="en">A creature with a physical body and a blank mind. There is no training run, no episodes and no resets: it was born once, lives one continuous life on this server, around the clock, and figures out on its own how to move its legs, how to get to food and how to stay alive. Nobody shows it how. What you see is what it has learned so far.</p>
+        <p data-lang="ru">Существо с физическим телом и пустым разумом. Здесь нет обучения заранее, нет эпизодов и перезапусков: оно родилось один раз, живёт одну непрерывную жизнь на этом сервере круглые сутки и само разбирается, как двигать ногами, как добраться до еды и как не умереть с голоду. Никто ему не показывает. То, что вы видите, — то, чему оно успело научиться.</p>
+        <p data-lang="en">It feels hunger, pain when it scrapes its body on the ground, and curiosity: things it cannot predict yet feel rewarding, until they become familiar. At night it sees less. Further from its birthplace the land gets rough: hills, steps, bumps and pits.</p>
+        <p data-lang="ru">Оно чувствует голод, боль, когда скребёт телом по земле, и любопытство: всё, что оно пока не умеет предсказать, ему интересно, пока не станет привычным. Ночью оно видит хуже. Чем дальше от места рождения, тем сложнее земля: холмы, уступы, кочки и ямы.</p>
+        <p data-lang="en">The food you drop is real to it: a pink snack lands next to it, and it has to get there. It may not manage yet.</p>
+        <p data-lang="ru">Еда, которую вы бросаете, для него настоящая: рядом падает розовое угощение, и до него нужно добраться. Может, пока и не получится.</p>
+      </div>
+      <div class="about-text">
+        <h2><span data-lang="en">How it’s made</span><span data-lang="ru">Как это сделано</span></h2>
+        <ul class="made-list">
+          <li data-lang="en"><b>Body.</b> A 2D physics body (pymunk): a torso on two legs, a hip and a knee motor in each, passive muscle tone. Gravity, friction and falls are real; nothing is animated.</li>
+          <li data-lang="ru"><b>Тело.</b> Двумерное физическое тело (pymunk): туловище на двух ногах, в каждой мотор бедра и колена, пассивный тонус мышц. Гравитация, трение и падения настоящие, ничего не анимировано.</li>
+          <li data-lang="en"><b>Senses.</b> Joint angles and speeds, touch on each foot and the torso, nine rays that feel the ground ahead and behind, the smell of the nearest food, its own energy, daylight.</li>
+          <li data-lang="ru"><b>Чувства.</b> Углы и скорости суставов, касание каждой стопой и туловищем, девять лучей, ощупывающих землю впереди и сзади, запах ближайшей еды, собственная энергия, свет дня.</li>
+          <li data-lang="en"><b>Mind.</b> Soft actor-critic (PyTorch) learning online from a lifelong memory of 300,000 moments, plus curiosity by random network distillation. The first few minutes of life are motor babbling, the way infants discover their limbs.</li>
+          <li data-lang="ru"><b>Разум.</b> Soft actor-critic (PyTorch), который учится на ходу из пожизненной памяти на 300&nbsp;000 моментов, плюс любопытство через random network distillation. Первые минуты жизни — моторный лепет, как у младенцев, открывающих свои руки и ноги.</li>
+          <li data-lang="en"><b>Here.</b> It lives in real time, 30 decisions a second, on one shared CPU core at the lowest priority. This page gets ten frames a second over server-sent events and smooths them in between.</li>
+          <li data-lang="ru"><b>Здесь.</b> Оно живёт в реальном времени, 30 решений в секунду, на одном общем ядре процессора с самым низким приоритетом. Страница получает десять кадров в секунду через server-sent events и сглаживает их между собой.</li>
+        </ul>
+        <p class="links">
+          <a class="btn" href="https://github.com/KosmmoSttars/tabula"><span data-lang="en">Source on GitHub</span><span data-lang="ru">Исходники на GitHub</span></a>
+          <a class="btn btn-quiet" href="https://github.com/KosmmoSttars/tabula#run-it-yourself"><span data-lang="en">Raise your own</span><span data-lang="ru">Вырастить своё</span></a>
+        </p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <p><span data-lang="en">Made by</span><span data-lang="ru">Сделано</span> <a href="https://kosmo-stars.ru/">KosmoStars</a></p>
+  </footer>
+
+  <script src="tabula.js"></script>
+</body>
+</html>

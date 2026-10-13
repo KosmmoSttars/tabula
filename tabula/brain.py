@@ -12,13 +12,12 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .config import BRAIN, REWARD
+from .config import BRAIN, REWARD, Brain as BrainConfig
 
 LOG_STD_MIN, LOG_STD_MAX = -5.0, 2.0
-LEARN_AFTER = BRAIN.batch * 4  # memories needed before learning starts
 
 
-def mlp(inp: int, out: int, hidden: int = BRAIN.hidden, norm: bool = True) -> nn.Sequential:
+def mlp(inp: int, out: int, hidden: int, norm: bool = True) -> nn.Sequential:
     layers: list[nn.Module] = []
     for i, o in ((inp, hidden), (hidden, hidden)):
         layers.append(nn.Linear(i, o))
@@ -62,9 +61,9 @@ class Normalizer:
 
 
 class Actor(nn.Module):
-    def __init__(self, obs_dim: int, act_dim: int):
+    def __init__(self, obs_dim: int, act_dim: int, hidden: int):
         super().__init__()
-        self.net = mlp(obs_dim, 2 * act_dim)
+        self.net = mlp(obs_dim, 2 * act_dim, hidden)
 
     def forward(self, obs: torch.Tensor, deterministic: bool = False):
         mu, log_std = self.net(obs).chunk(2, dim=-1)
@@ -79,10 +78,10 @@ class Actor(nn.Module):
 
 
 class TwinCritic(nn.Module):
-    def __init__(self, obs_dim: int, act_dim: int):
+    def __init__(self, obs_dim: int, act_dim: int, hidden: int):
         super().__init__()
-        self.q1 = mlp(obs_dim + act_dim, 1)
-        self.q2 = mlp(obs_dim + act_dim, 1)
+        self.q1 = mlp(obs_dim + act_dim, 1, hidden)
+        self.q2 = mlp(obs_dim + act_dim, 1, hidden)
 
     def forward(self, obs, act):
         x = torch.cat([obs, act], dim=-1)
@@ -127,15 +126,16 @@ class Replay:
 
 
 class Brain:
-    def __init__(self, obs_dim: int, act_dim: int, seed: int = 0):
-        torch.set_num_threads(BRAIN.threads)
+    def __init__(self, obs_dim: int, act_dim: int, seed: int = 0, config: BrainConfig | None = None):
+        self.cfg = cfg = config or BRAIN
+        torch.set_num_threads(cfg.threads)
         torch.manual_seed(seed)
         self.rng = np.random.default_rng(seed)
         self.act_dim = act_dim
 
-        self.actor = Actor(obs_dim, act_dim)
-        self.critic = TwinCritic(obs_dim, act_dim)
-        self.critic_target = TwinCritic(obs_dim, act_dim)
+        self.actor = Actor(obs_dim, act_dim, cfg.hidden)
+        self.critic = TwinCritic(obs_dim, act_dim, cfg.hidden)
+        self.critic_target = TwinCritic(obs_dim, act_dim, cfg.hidden)
         self.critic_target.load_state_dict(self.critic.state_dict())
         for p in self.critic_target.parameters():
             p.requires_grad_(False)
@@ -144,22 +144,23 @@ class Brain:
 
         # Curiosity: a fixed random projection of the senses and a predictor that
         # chases it. What the predictor cannot yet predict is new to the creature.
-        self.rnd_target = mlp(obs_dim, BRAIN.rnd_dim, hidden=128, norm=False)
+        self.rnd_target = mlp(obs_dim, cfg.rnd_dim, hidden=128, norm=False)
         for p in self.rnd_target.parameters():
             p.requires_grad_(False)
-        self.rnd_pred = mlp(obs_dim, BRAIN.rnd_dim, hidden=128, norm=False)
+        self.rnd_pred = mlp(obs_dim, cfg.rnd_dim, hidden=128, norm=False)
         self.novelty_mean = 1.0  # EMA of raw prediction error, for scale
 
-        self.opt_actor = torch.optim.Adam(self.actor.parameters(), lr=BRAIN.lr, foreach=True)
-        self.opt_critic = torch.optim.Adam(self.critic.parameters(), lr=BRAIN.lr, foreach=True)
-        self.opt_alpha = torch.optim.Adam([self.log_alpha], lr=BRAIN.lr)
-        self.opt_rnd = torch.optim.Adam(self.rnd_pred.parameters(), lr=BRAIN.lr, foreach=True)
+        self.opt_actor = torch.optim.Adam(self.actor.parameters(), lr=cfg.lr, foreach=True)
+        self.opt_critic = torch.optim.Adam(self.critic.parameters(), lr=cfg.lr, foreach=True)
+        self.opt_alpha = torch.optim.Adam([self.log_alpha], lr=cfg.lr)
+        self.opt_rnd = torch.optim.Adam(self.rnd_pred.parameters(), lr=cfg.lr, foreach=True)
         self.lock = threading.Lock()
         self._alive = False
         self._thread: threading.Thread | None = None
 
         self.norm = Normalizer(obs_dim)
-        self.memory = Replay(obs_dim, act_dim, BRAIN.replay_capacity)
+        self.memory = Replay(obs_dim, act_dim, cfg.replay_capacity)
+        self.learn_after = cfg.batch * 4   # memories needed before learning starts
         self.steps = 0
         self.updates = 0
         self.babble = np.zeros(act_dim, dtype=np.float32)
@@ -167,7 +168,7 @@ class Brain:
 
     @property
     def babbling(self) -> bool:
-        return self.steps < BRAIN.babbling_steps
+        return self.steps < self.cfg.babbling_steps
 
     # ---------------------------------------------------------------- acting
     @torch.no_grad()
@@ -198,11 +199,11 @@ class Brain:
     # ratio is kept between min_utd and max_utd updates per lived step.
     @property
     def _learnable_steps(self) -> int:
-        return max(self.steps - LEARN_AFTER, 0)
+        return max(self.steps - self.learn_after, 0)
 
     @property
     def behind(self) -> bool:
-        return self._alive and self.updates < self._learnable_steps * BRAIN.min_utd
+        return self._alive and self.updates < self._learnable_steps * self.cfg.min_utd
 
     def start(self) -> None:
         self._alive = True
@@ -217,14 +218,14 @@ class Brain:
 
     def _learn_loop(self) -> None:
         while self._alive:
-            if self.memory.size < LEARN_AFTER or self.updates >= self._learnable_steps * BRAIN.max_utd:
+            if self.memory.size < self.learn_after or self.updates >= self._learnable_steps * self.cfg.max_utd:
                 time.sleep(0.002)
                 continue
             with self.lock:
                 self._update()
 
     def _update(self) -> None:
-        obs, act, rew, nxt = self.memory.sample(BRAIN.batch, self.rng)
+        obs, act, rew, nxt = self.memory.sample(self.cfg.batch, self.rng)
         obs, nxt = self.norm(obs), self.norm(nxt)
         alpha = self.log_alpha.exp().detach()
 
@@ -237,7 +238,7 @@ class Brain:
         with torch.no_grad():
             a2, logp2 = self.actor(nxt)
             tq1, tq2 = self.critic_target(nxt, a2)
-            target = reward + BRAIN.gamma * (torch.min(tq1, tq2) - alpha * logp2)
+            target = reward + self.cfg.gamma * (torch.min(tq1, tq2) - alpha * logp2)
         q1, q2 = self.critic(obs, act)
         critic_loss = F.mse_loss(q1, target) + F.mse_loss(q2, target)
         self.opt_critic.zero_grad(set_to_none=True)
@@ -265,7 +266,7 @@ class Brain:
 
         with torch.no_grad():
             for p, tp in zip(self.critic.parameters(), self.critic_target.parameters()):
-                tp.mul_(1 - BRAIN.tau).add_(p, alpha=BRAIN.tau)
+                tp.mul_(1 - self.cfg.tau).add_(p, alpha=self.cfg.tau)
 
         self.updates += 1
         if self.updates % 50 == 0:

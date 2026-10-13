@@ -1,4 +1,4 @@
-"""All tunable constants in one place."""
+"""All tunable constants in one place. Body plans live in bodies.py."""
 
 from dataclasses import dataclass
 
@@ -14,18 +14,6 @@ class Physics:
 
 @dataclass(frozen=True)
 class Body:
-    torso_size: tuple = (1.1, 0.28)
-    torso_mass: float = 4.0
-    thigh_len: float = 0.42
-    shin_len: float = 0.42
-    limb_width: float = 0.09
-    limb_mass: float = 0.6
-    foot_radius: float = 0.07
-    hip_offset: float = 0.42      # hips sit this far from torso center (front / back)
-    hip_limits: tuple = (-1.1, 1.1)
-    knee_limits: tuple = (-2.2, 0.1)
-    hip_torque: float = 36.0
-    knee_torque: float = 30.0
     max_joint_speed: float = 6.0
     tone_stiffness: float = 20.0  # passive spring pulling every joint to neutral
     tone_damping: float = 1.5
@@ -33,9 +21,22 @@ class Body:
 
 
 @dataclass(frozen=True)
+class Land:
+    flat_radius: float = 12.0     # metres around the birthplace without hills, pits or steps
+    rough_over: float = 60.0      # hills grow to full height over this many metres beyond that
+    feature_spacing: float = 3.0  # at least this far apart
+    pit_width: tuple = (0.7, 1.5)
+    pit_depth: tuple = (0.35, 0.6)
+    step_height: tuple = (0.12, 0.3)
+    bump_height: tuple = (0.15, 0.35)
+    bump_width: tuple = (0.3, 0.6)
+
+
+@dataclass(frozen=True)
 class Senses:
     lidar_rays: int = 9
-    lidar_range: float = 3.0
+    lidar_range: float = 3.0      # by day
+    night_lidar_range: float = 1.2
     scent_scale: float = 12.0     # distance at which scent fades to ~37%
 
 
@@ -50,6 +51,10 @@ class Life:
     food_max_dist: float = 15.0
     eat_reach: float = 0.65
     rescue_seconds: float = 12.0      # flipped or lying on its torso this long -> the world rights it
+    pit_seconds: float = 90.0         # stuck in a pit this long -> the world lifts it out
+    day_minutes: float = 12.0         # one day and night, simulated minutes
+    night_share: float = 0.35
+    gifts_max: int = 3                # food dropped by visitors lying around at once
 
 
 @dataclass(frozen=True)
@@ -58,7 +63,7 @@ class Reward:
     approach: float = 3.0         # per metre closer to the food (scent shaping)
     hunger: float = 0.03          # per step, scaled by (1 - energy)^2
     pain: float = 0.5             # per step while torso scrapes the ground
-    effort: float = 0.0005        # per step, times sum(a^2)
+    effort: float = 0.0005        # per step, times sum(a^2), per motor
     curiosity: float = 0.05       # times normalized novelty
 
 
@@ -79,7 +84,10 @@ class Brain:
 
 PHYS = Physics()
 BODY = Body()
+LAND = Land()
 SENSES = Senses()
 LIFE = Life()
 REWARD = Reward()
 BRAIN = Brain()
+# For a small server that lives in real time on one shared CPU core.
+SMALL_BRAIN = Brain(hidden=128, batch=128, replay_capacity=300_000, max_utd=1.0, min_utd=0.5, threads=1)

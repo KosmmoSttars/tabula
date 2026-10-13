@@ -26,6 +26,9 @@ class Biography:
         self.meals = 0
         self.rescues = 0
         self.exhaustions = 0
+        self.gifts = 0             # meals dropped by visitors
+        self.lifted = 0            # times it was lifted out of a pit
+        self.nights = 0
         self.walked = 0.0          # total ground covered, metres
         self.farthest = 0.0        # farthest from birthplace, metres
         self.stage = "babbling"
@@ -58,8 +61,18 @@ class Biography:
             if e == "meal":
                 self.meals += 1
                 self._minute["meals"] += 1
+            elif e.startswith("gift:"):
+                self.meals += 1
+                self.gifts += 1
+                self._minute["meals"] += 1
+                giver = e[5:]
+                new += self._mark(age, "gift1", f"Ate food from a stranger ({giver})" if giver else
+                                  "Ate food from a stranger")
             elif e == "rescued":
                 self.rescues += 1
+            elif e == "lifted":
+                self.lifted += 1
+                new += self._mark(age, "lifted", "Got stuck in a pit and was lifted out")
             elif e == "exhausted":
                 self.exhaustions += 1
                 new += self._mark(age, "exhausted", "Ran out of energy for the first time")
@@ -147,7 +160,8 @@ class Biography:
     def state(self) -> dict:
         return {
             "name": self.name, "born": self.born, "meals": self.meals, "rescues": self.rescues,
-            "exhaustions": self.exhaustions, "walked": self.walked, "farthest": self.farthest,
+            "exhaustions": self.exhaustions, "gifts": self.gifts, "lifted": self.lifted,
+            "walked": self.walked, "farthest": self.farthest,
             "stage": self.stage, "milestones": self.milestones, "achieved": sorted(self.achieved),
             "history": self.history,
         }
@@ -155,6 +169,7 @@ class Biography:
     def load(self, s: dict) -> None:
         self.name, self.born = s["name"], s["born"]
         self.meals, self.rescues, self.exhaustions = s["meals"], s["rescues"], s["exhaustions"]
+        self.gifts, self.lifted = s.get("gifts", 0), s.get("lifted", 0)
         self.walked, self.farthest, self.stage = s["walked"], s["farthest"], s["stage"]
         self.milestones = [tuple(m) for m in s["milestones"]]
         self.achieved = set(s["achieved"])

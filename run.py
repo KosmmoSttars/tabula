@@ -2,6 +2,7 @@
 
     python run.py                 resume the most recent life (or start one)
     python run.py --new           give birth to a new creature
+    python run.py --new --body quadruped   ...with another body plan (strider, quadruped, hopper)
     python run.py --life Kaloru   resume a specific creature
     python run.py --headless      live without a window, as fast as possible
 """
@@ -10,6 +11,8 @@ import argparse
 import time
 
 from tabula.being import Being
+from tabula.bodies import PLANS
+from tabula.config import SMALL_BRAIN
 from tabula.life import fmt_age
 
 
@@ -40,10 +43,13 @@ def main() -> None:
     ap.add_argument("--new", action="store_true", help="start a new life")
     ap.add_argument("--life", help="name of the creature to resume or create")
     ap.add_argument("--seed", type=int, help="world seed for a new life")
+    ap.add_argument("--body", choices=sorted(PLANS), help="body plan for a new life (default strider)")
     ap.add_argument("--headless", action="store_true", help="no window, maximum speed")
+    ap.add_argument("--small-brain", action="store_true", help="the server's smaller, single-threaded mind")
     args = ap.parse_args()
 
-    being = Being(args.life, new=args.new, seed=args.seed)
+    being = Being(args.life, new=args.new, seed=args.seed, body=args.body,
+                  brain_config=SMALL_BRAIN if args.small_brain else None)
     print(("Resumed " if being.resumed else "Born: ") + being.name)
     if args.headless:
         headless(being)
