@@ -9,6 +9,7 @@ from . import persist
 from .brain import Brain
 from .life import Biography
 from .bodies import DEFAULT as DEFAULT_BODY
+from .config import Brain as BrainConfig
 from .world import World
 
 SAVE_EVERY_S = 10 * 60        # brain and biography, real seconds
@@ -31,7 +32,9 @@ class Being:
         persist.life_dir(name).mkdir(parents=True, exist_ok=True)
 
         if resume:
-            seed, body = persist.read_birth(name)
+            seed, body, mind = persist.read_birth(name)
+            if mind is not None:   # a mind keeps the size it was born with
+                brain_config = BrainConfig(**mind)
         elif seed is None:
             seed = int(np.random.default_rng().integers(0, 2**31))
         self.world = World(seed, body or DEFAULT_BODY)

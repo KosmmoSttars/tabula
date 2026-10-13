@@ -341,3 +341,80 @@ class View:
         mode = MODES[self.mode][0] + ("  PAUSED" if self.paused else "")
         self._text(f"[1/2/3] speed: {mode}   [space] pause", (x, H - 36), C["dim"], self.small)
         self._text("[v] senses  [s] save  [click] drop food  [esc] sleep", (x, H - 20), C["dim"], self.small)
+
+
+def choose_body() -> str | None:
+    """The birth screen: pick a body plan for a new creature. None if the window is closed."""
+    from .bodies import PLANS
+
+    pygame.init()
+    pygame.display.set_caption("Tabula - a new life")
+    screen = pygame.display.set_mode((W, H))
+    big = pygame.font.SysFont("consolas", 34, bold=True)
+    font = pygame.font.SysFont("consolas", 16)
+    small = pygame.font.SysFont("consolas", 14)
+    plans = list(PLANS.values())
+    card_w, card_h, gap = 340, 380, 30
+    left = (W - len(plans) * card_w - (len(plans) - 1) * gap) // 2
+    cards = [pygame.Rect(left + i * (card_w + gap), 190, card_w, card_h) for i in range(len(plans))]
+    sky = View._gradient(W, H, C["sky_top"], C["sky_bot"])
+    clock = pygame.time.Clock()
+    while True:
+        mouse = pygame.mouse.get_pos()
+        for e in pygame.event.get():
+            if e.type == pygame.QUIT or (e.type == pygame.KEYDOWN and e.key == pygame.K_ESCAPE):
+                pygame.quit()
+                return None
+            if e.type == pygame.KEYDOWN and pygame.K_1 <= e.key < pygame.K_1 + len(plans):
+                return plans[e.key - pygame.K_1].key
+            if e.type == pygame.MOUSEBUTTONDOWN and e.button == 1:
+                for rect, plan in zip(cards, plans):
+                    if rect.collidepoint(e.pos):
+                        return plan.key
+        screen.blit(sky, (0, 0))
+        title = big.render("A new life", True, C["accent"])
+        screen.blit(title, ((W - title.get_width()) // 2, 70))
+        sub = font.render("Choose its body. It keeps it for life and has to work out how to use it.", True, C["text"])
+        screen.blit(sub, ((W - sub.get_width()) // 2, 122))
+        for i, (rect, plan) in enumerate(zip(cards, plans)):
+            hover = rect.collidepoint(mouse)
+            pygame.draw.rect(screen, (34, 39, 54) if hover else C["panel"], rect, border_radius=12)
+            pygame.draw.rect(screen, C["accent"] if hover else C["grid"], rect, 2, border_radius=12)
+            _draw_plan(screen, plan, rect.centerx, rect.y + 200)
+            name = big.render(plan.title, True, C["text"])
+            screen.blit(name, (rect.x + 22, rect.y + 228))
+            words, line, y = plan.about.split(), "", rect.y + 276
+            for word in words:
+                if small.size(line + word)[0] > card_w - 44:
+                    screen.blit(small.render(line, True, C["dim"]), (rect.x + 22, y))
+                    line, y = "", y + 18
+                line += word + " "
+            screen.blit(small.render(line, True, C["dim"]), (rect.x + 22, y))
+            screen.blit(small.render(f"[{i + 1}]  {plan.joints} motors", True, C["dim"]), (rect.x + 22, rect.bottom - 30))
+        pygame.display.flip()
+        clock.tick(60)
+
+
+def _draw_plan(screen, plan, cx: int, ground_y: int) -> None:
+    """A standing creature of this plan, for the birth screen."""
+    tw, th = plan.torso_size
+    leg_len = plan.thigh_len + plan.shin_len
+    s = min(150.0, 165.0 / (leg_len + plan.foot_radius + th))   # pixels per metre, fitting the card
+    top = ground_y - (leg_len + plan.foot_radius + th) * s
+    pygame.draw.line(screen, C["ground_edge"], (cx - 140, ground_y), (cx + 140, ground_y), 3)
+    order = sorted(plan.legs, key=lambda leg: not leg.far)
+    for leg in order:
+        x = cx + leg.hip_x * s + (6 if leg.far else 0)
+        col = C["limb_dark"] if leg.far or (len(plan.legs) == 2 and leg.hip_x < 0) else C["limb"]
+        hip_y = top + th * s
+        knee_y = hip_y + plan.thigh_len * s
+        foot_y = knee_y + plan.shin_len * s
+        pygame.draw.line(screen, col, (x, hip_y), (x, knee_y), max(4, int(plan.limb_width * s)))
+        pygame.draw.line(screen, col, (x, knee_y), (x, foot_y), max(3, int(plan.limb_width * 0.8 * s)))
+        pygame.draw.circle(screen, C["foot_off"], (int(x), int(foot_y)), max(4, int(plan.foot_radius * s)))
+    body = pygame.Rect(0, 0, int(tw * s), int(th * s))
+    body.midtop = (cx, int(top))
+    pygame.draw.rect(screen, C["torso"], body, border_radius=4)
+    ex, ey = int(cx + plan.eye_x * s), int(top + th * s * 0.4)
+    pygame.draw.circle(screen, (250, 250, 245), (ex, ey), 9)
+    pygame.draw.circle(screen, (30, 30, 40), (ex + 3, ey), 4)
