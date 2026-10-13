@@ -45,26 +45,29 @@ class Life:
     energy_decay: float = 1 / 240     # per simulated second at rest
     effort_cost: float = 1 / 900      # extra per second at full effort on every motor
     meal_energy: float = 0.35
-    exhausted_strength: float = 0.5   # motor strength when energy hits zero
+    exhausted_strength: float = 0.75  # motor strength when energy hits zero
     nursing_minutes: float = 30.0     # hunger ramps in over this much simulated time
     food_min_dist: float = 6.0
     food_max_dist: float = 15.0
     eat_reach: float = 0.65
-    rescue_seconds: float = 12.0      # flipped or lying on its torso this long -> the world rights it
+    rescue_seconds: float = 8.0       # flipped or lying on its torso this long -> the world rights it
     pit_seconds: float = 90.0         # stuck in a pit this long -> the world lifts it out
     day_minutes: float = 12.0         # one day and night, simulated minutes
     night_share: float = 0.35
     gifts_max: int = 3                # food dropped by visitors lying around at once
 
 
+# Balanced so that trying to move pays: with pain at 0.5 and approach at 3, every creature learned
+# that a fall costs far more than a few metres earn, and stood still for life (a braced stance,
+# exploration collapsed). See README, "What to expect".
 @dataclass(frozen=True)
 class Reward:
     meal: float = 10.0
-    approach: float = 3.0         # per metre closer to the food (scent shaping)
+    approach: float = 10.0        # per metre closer to the food (scent shaping)
     hunger: float = 0.03          # per step, scaled by (1 - energy)^2
-    pain: float = 0.5             # per step while torso scrapes the ground
+    pain: float = 0.05            # per step while torso scrapes the ground
     effort: float = 0.0005        # per step, times sum(a^2), per motor
-    curiosity: float = 0.05       # times normalized novelty
+    curiosity: float = 0.1        # times normalized novelty
 
 
 @dataclass(frozen=True)

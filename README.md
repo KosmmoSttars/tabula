@@ -82,7 +82,13 @@ Stages, judged from how far it actually travels over the last 30 simulated secon
 
 It takes a long time. Simple gaits need a few hundred thousand moments of experience,
 which is hours; every body plan finds a different one, and not every creature finds one
-quickly. Milestones (first meal, distance from birthplace, new stages, age, food from
+quickly. In tests, striders found food a few dozen times in their first two hours,
+crawling and lurching their way to it; walking proper takes longer.
+
+The rewards are balanced so that trying pays. An earlier version punished scraping the
+torso ten times harder and paid a third as much for getting closer to food: every creature
+then learned that one fall costs more than any walk earns, braced its legs and stood still
+for the rest of its life. Milestones (first meal, distance from birthplace, new stages, age, food from
 strangers) are shown in the window and appended to `lives/<name>/life.log`.
 
 ## Online
