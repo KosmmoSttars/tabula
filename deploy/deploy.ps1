@@ -2,7 +2,8 @@
 # on the way down and wakes up where it was) and the page to https://kosmo-stars.ru/tabula/.
 # Usage: powershell -ExecutionPolicy Bypass -File deploy\deploy.ps1 [-Setup]
 #   -Setup  also run deploy/server-setup.sh (first time, or after changing it)
-# Ships git HEAD, so commit first.
+# Ships git HEAD, so commit first. No double quotes in the remote script: Windows PowerShell mangles
+# them on the way to ssh.
 param(
     [string]$Server = "root@31.76.42.101",
     [string]$Site = "/www/wwwroot/kosmo-stars.ru",
@@ -30,7 +31,7 @@ $setupLine
 rm -rf /opt/tabula/app.next
 mkdir -p /opt/tabula/app.next
 cp -r /tmp/tabula-src/tabula /opt/tabula/app.next/
-/opt/tabula/venv/bin/python -c "import sys; sys.path.insert(0, '/opt/tabula/app.next'); import tabula.server"
+cd /opt/tabula/app.next && /opt/tabula/venv/bin/python -c 'import tabula.server' && cd /
 rm -rf $Page.next
 cp -r /tmp/tabula-src/web $Page.next
 chown -R www:www $Page.next
